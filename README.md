@@ -20,12 +20,12 @@ git clone https://github.com/moegosv/gramup
 cd gramup
 
 Crie uma pasta chamada .env e adicione isso lá:
+
 API_ID=123456
 API_HASH=1a2b3c4d5e6f7890abcdef1234567890
 PHONE_NUMBER=+55987654321
 SESSION_NAME=bot_session
 VIDEO_FOLDER=/home/user/Videos # Linux
-# VIDEO_FOLDER=C:\\Users\\User\\Videos" # Windows
 
 Crie um ambiente virtual:
 
