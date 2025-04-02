@@ -9,11 +9,11 @@ Certifique-se de ter o seguinte instalado:
 
 Siga os passos abaixo para configurar o projeto:
 
-### 1. Instale o FFmpeg e Python
+### 1. Instale o git, FFmpeg e Python
 
 **Para Arch Linux:**
 ```bash
-sudo pacman -S ffmpeg python
+sudo pacman -S git ffmpeg python
 ```
 
 **Para outros sistemas operacionais:**
@@ -58,5 +58,5 @@ pip install -r requirements.txt
 
 ### 6. Inicie o projeto
 ```bash
-python main.py
+python bot.py
 ```
