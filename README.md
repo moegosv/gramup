@@ -19,7 +19,6 @@ Clone o repositório:
 git clone https://github.com/moegosv/gramup
 cd gramup
 
-########################
 Crie uma pasta chamada .env e adicione isso lá:
 API_ID=123456
 API_HASH=1a2b3c4d5e6f7890abcdef1234567890
@@ -27,7 +26,6 @@ PHONE_NUMBER=+55987654321
 SESSION_NAME=bot_session
 VIDEO_FOLDER=/home/user/Videos # Linux
 # VIDEO_FOLDER=C:\\Users\\User\\Videos" # Windows
-########################
 
 Crie um ambiente virtual:
 
@@ -35,15 +33,13 @@ Crie um ambiente virtual:
 python -m venv venv
 venv\Scripts\activate
 
-################
-
 - No Linux/Mac:
 python3 -m venv venv
 source venv/bin/activate
-########################
+
 
 - Instale dependências:
 pip install -r requirements.txt
-########################
+
 Inicie o projeto:
 python main.py
