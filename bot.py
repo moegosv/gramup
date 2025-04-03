@@ -13,6 +13,7 @@ from PIL import Image
 import io
 from colorama import init, Fore, Back, Style
 from dotenv import load_dotenv
+import time
 
 load_dotenv()
 init()
@@ -69,9 +70,9 @@ def select_chat_interactively(chats):
         curses.curs_set(0)
         curses.start_color()
         curses.use_default_colors()
-        curses.init_pair(1, curses.COLOR_CYAN, -1)  # Cabeçalho
-        curses.init_pair(2, curses.COLOR_GREEN, -1)  # Texto normal
-        curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_CYAN)  # Item selecionado
+        curses.init_pair(1, curses.COLOR_CYAN, -1)
+        curses.init_pair(2, curses.COLOR_GREEN, -1)
+        curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_CYAN)
 
         selected = 0
         max_y, max_x = stdscr.getmaxyx()
@@ -88,11 +89,7 @@ def select_chat_interactively(chats):
                 idx = i + start_idx
                 if idx < len(chats):
                     chat = chats[idx]
-                    if idx == selected:
-                        color_pair = curses.color_pair(3)
-                    else:
-                        color_pair = curses.color_pair(2)
-
+                    color_pair = curses.color_pair(3) if idx == selected else curses.color_pair(2)
                     chat_type = "Canal" if chat['type'] == 'channel' else "Grupo"
                     line = f"│ {idx+1}. [{chat_type}] {chat['title']} (ID: -100{chat['id']})"
                     stdscr.addstr(i + 2, 0, line[:max_x-1], color_pair)
@@ -112,7 +109,7 @@ def select_chat_interactively(chats):
                 selected += 1
             elif key == ord('\n'):
                 return chats[selected]
-            elif key == 27:  # ESC
+            elif key == 27:
                 return None
 
     return curses.wrapper(draw_menu)
@@ -134,7 +131,6 @@ async def get_destination(client):
         print(f"\n{Fore.GREEN}┌──── ⚙️ Escolha uma Opção ────┐{Style.RESET_ALL}")
         print(f"{Fore.GREEN}│ 1 → Usar o mesmo destino{Style.RESET_ALL}")
         print(f"{Fore.GREEN}│ 2 → Configurar novo destino{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}└──────────────────────┘{Style.RESET_ALL}")
         choice = input(f"\n{Fore.YELLOW}Opção (1/2): {Style.RESET_ALL}")
         if choice == '1':
             if last_dest == "channel" and last_chat and not last_chat.startswith('-100'):
@@ -145,7 +141,6 @@ async def get_destination(client):
     print(f"{Fore.GREEN}│ 1 → Mensagens Salvas{Style.RESET_ALL}")
     print(f"{Fore.GREEN}│ 2 → Selecionar Canal/Grupo{Style.RESET_ALL}")
     print(f"{Fore.GREEN}│ 3 → Digitar ID manualmente{Style.RESET_ALL}")
-    print(f"{Fore.GREEN}└──────────────────────────┘{Style.RESET_ALL}")
     dest_choice = input(f"\n{Fore.YELLOW}Opção (1/2/3): {Style.RESET_ALL}")
 
     if dest_choice == '1':
@@ -248,11 +243,42 @@ def clean_filename(filename: str) -> str:
         base = base.replace('.mp4', '').replace('.mkv', '').replace('.avi', '').replace('.mov', '')
     return base
 
+def format_time(seconds: float) -> str:
+    """Formata o tempo em uma string natural"""
+    minutes = int(seconds // 60)
+    secs = int(seconds % 60)
+    if minutes > 0:
+        if secs > 0:
+            return f"{minutes} minuto{'s' if minutes > 1 else ''} e {secs} segundo{'s' if secs > 1 else ''}"
+        return f"{minutes} minuto{'s' if minutes > 1 else ''}"
+    return f"{secs} segundo{'s' if secs > 1 else ''}"
+
+def progress_callback(current: int, total: int, start_time: float):
+    """Callback para mostrar progresso do upload com tempo e ETA"""
+    percent = current / total * 100
+    bar_length = 10
+    filled_length = int(bar_length * current // total)
+    bar = '█' * filled_length + '.' * (bar_length - filled_length)
+
+    elapsed_time = time.time() - start_time
+    elapsed_str = format_time(elapsed_time)
+
+    if percent > 0:
+        eta_seconds = (elapsed_time / (percent / 100)) - elapsed_time
+        eta_str = f"ETA: {format_time(eta_seconds)}"
+    else:
+        eta_str = "ETA: calculando..."
+
+    print(f"\r{Fore.CYAN}│ 🚀 {percent:.1f}% [{bar}] | {elapsed_str} | {eta_str}{Style.RESET_ALL}", end='')
+
 async def upload_video(client: TelegramClient, file_path: str, file_name: str,
-                      destination: str, chat_id: str = None, progress_callback=None):
-    """Envia o vídeo para o destino especificado"""
+                      destination: str, chat_id: str = None):
+    """Envia o vídeo para o destino especificado com medição de tempo"""
+    start_time = time.time()
+
     with open(file_path, 'rb') as file:
-        input_file = await upload_file(client, file, file_name, progress_callback=progress_callback)
+        input_file = await upload_file(client, file, file_name,
+                                     progress_callback=lambda c, t: progress_callback(c, t, start_time))
 
     duration, width, height = get_video_metadata(file_path)
     thumb = extract_thumbnail(file_path)
@@ -272,8 +298,9 @@ async def upload_video(client: TelegramClient, file_path: str, file_name: str,
             )],
             force_document=False
         )
+        elapsed_time = time.time() - start_time
         print(f"\n{Fore.GREEN}┌──── Sucesso ────┐{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}│ 🎬 Enviado para Mensagens Salvas!{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}│ 🎬 Enviado para Mensagens Salvas em {format_time(elapsed_time)}!{Style.RESET_ALL}")
     else:
         try:
             chat_id = int(chat_id) if chat_id.startswith('-100') else int(f"-100{chat_id}")
@@ -290,21 +317,16 @@ async def upload_video(client: TelegramClient, file_path: str, file_name: str,
                 )],
                 force_document=False
             )
+            elapsed_time = time.time() - start_time
             print(f"\n{Fore.GREEN}┌──── Sucesso ────┐{Style.RESET_ALL}")
-            print(f"{Fore.GREEN}│ 🎬 Enviado para o canal/grupo!{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}│ 🎬 Enviado para o canal/grupo em {format_time(elapsed_time)}!{Style.RESET_ALL}")
         except Exception as e:
             print(f"\n{Fore.RED}┌──── Erro ────┐{Style.RESET_ALL}")
             print(f"{Fore.RED}│ Erro ao enviar para o canal: {e}{Style.RESET_ALL}")
             print(f"{Fore.YELLOW}│ Enviando para Mensagens Salvas...{Style.RESET_ALL}")
             await upload_video(client, file_path, file_name, "saved")
 
-def progress_callback(current: int, total: int):
-    """Callback para mostrar progresso do upload"""
-    percent = current / total * 100
-    bar_length = 10
-    filled_length = int(bar_length * current // total)
-    bar = '█' * filled_length + '.' * (bar_length - filled_length)
-    print(f"\r{Fore.CYAN}│ 🚀 {percent:.1f}% [{bar}] {Style.RESET_ALL}", end='')
+    return time.time() - start_time
 
 def get_video_files(folder: str) -> list:
     """Lista arquivos de vídeo na pasta"""
@@ -326,10 +348,10 @@ def curses_menu(stdscr, video_files: list, folder: str):
     curses.curs_set(0)
     curses.start_color()
     curses.use_default_colors()
-    curses.init_pair(1, curses.COLOR_CYAN, -1)  # Cabeçalho
-    curses.init_pair(2, curses.COLOR_GREEN, -1)  # Texto normal
-    curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_CYAN)  # Selecionado
-    curses.init_pair(4, curses.COLOR_YELLOW, -1)  # Detalhes
+    curses.init_pair(1, curses.COLOR_CYAN, -1)
+    curses.init_pair(2, curses.COLOR_GREEN, -1)
+    curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_CYAN)
+    curses.init_pair(4, curses.COLOR_YELLOW, -1)
 
     selected = 0
     to_upload = set()
@@ -437,7 +459,6 @@ async def main():
     print(f"\n{Fore.GREEN}┌──── ⚙️ Escolha uma Opção ────┐{Style.RESET_ALL}")
     print(f"{Fore.GREEN}│ 1 → Selecionar vídeos individualmente{Style.RESET_ALL}")
     print(f"{Fore.GREEN}│ 2 → Enviar todos os vídeos{Style.RESET_ALL}")
-    print(f"{Fore.GREEN}└──────────────────────────┘{Style.RESET_ALL}")
     choice = input(f"\n{Fore.YELLOW}Opção (1/2): {Style.RESET_ALL}")
 
     selected_videos = []
@@ -481,14 +502,22 @@ async def main():
         await client.disconnect()
         return
 
+    total_start_time = time.time()
+    total_upload_time = 0
+
     for video in selected_videos:
         file_path = os.path.join(VIDEO_FOLDER, video)
         print(f"\n{Fore.CYAN}┌──── Upload ────┐{Style.RESET_ALL}")
         print(f"{Fore.CYAN}│ Iniciando: {video}{Style.RESET_ALL}")
-        await upload_video(client, file_path, video, destination, chat_id, progress_callback)
+        upload_time = await upload_video(client, file_path, video, destination, chat_id)
+        total_upload_time += upload_time
+
+    total_elapsed = time.time() - total_start_time
+    total_time_str = format_time(total_elapsed)
 
     print(f"\n{Fore.GREEN}{Style.BRIGHT}┌──── ✅ Concluído ────┐{Style.RESET_ALL}")
     print(f"{Fore.GREEN}{Style.BRIGHT}│ {len(selected_videos)} vídeos enviados{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}{Style.BRIGHT}│ Tempo total: {total_time_str}{Style.RESET_ALL}")
     await client.disconnect()
 
 if __name__ == "__main__":
